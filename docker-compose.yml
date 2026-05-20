@@ -1,0 +1,13 @@
+version: "3.8"
+
+services:
+  ezviz-viewer:
+    build: .
+    container_name: ezviz-lan-viewer
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./cameras.json:/app/cameras.json
+      - ./streams:/app/streams
+    network_mode: host  # Required to access cameras on LAN
+    restart: unless-stopped
