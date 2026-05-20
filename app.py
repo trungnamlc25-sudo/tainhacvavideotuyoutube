@@ -113,18 +113,11 @@ def start_ffmpeg_stream(camera_id: str, rtsp_url: str) -> bool:
         "ffmpeg",
         "-y",
         "-fflags",
-        "+genpts+discardcorrupt+nobuffer",
+        "nobuffer",
         "-rtsp_transport",
         "tcp",
-        "-rtsp_flags",
-        "prefer_tcp",
-        "-stimeout",
-        "5000000",
         "-i",
         rtsp_url,
-        "-vsync",
-        "0",
-        "-copyts",
         "-c:v",
         "libx264",
         "-preset",
@@ -133,8 +126,6 @@ def start_ffmpeg_stream(camera_id: str, rtsp_url: str) -> bool:
         "zerolatency",
         "-g",
         "15",
-        "-sc_threshold",
-        "0",
         "-vf",
         "scale=1280:720",
         "-c:a",
@@ -312,9 +303,19 @@ async def start_stream(camera_id: str):
             break
         # Check if FFmpeg crashed
         if not is_stream_active(camera_id):
+            # Try to get FFmpeg error output
+            err_msg = "FFmpeg process died."
+            with process_lock:
+                proc = ffmpeg_processes.get(camera_id)
+            if proc and proc.stderr:
+                try:
+                    stderr_output = proc.stderr.read().decode(errors="ignore")[-500:]
+                    err_msg += f" Error: {stderr_output}"
+                except Exception:
+                    pass
             raise HTTPException(
                 status_code=500,
-                detail="FFmpeg process died. Check camera IP/password and FFmpeg installation.",
+                detail=err_msg,
             )
     else:
         raise HTTPException(
