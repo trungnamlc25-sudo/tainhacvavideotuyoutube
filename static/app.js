@@ -105,34 +105,48 @@ function initHlsPlayer(cameraId, streamUrl) {
         const hls = new Hls({
             liveDurationInfinity: true,
             liveBackBufferLength: 0,
-            maxBufferLength: 10,
-            maxMaxBufferLength: 30,
-            liveSyncDurationCount: 2,
-            manifestLoadingRetryDelay: 2000,
-            manifestLoadingMaxRetry: 10,
-            levelLoadingRetryDelay: 2000,
-            levelLoadingMaxRetry: 10,
-            fragLoadingRetryDelay: 2000,
-            fragLoadingMaxRetry: 10,
+            maxBufferLength: 4,
+            maxMaxBufferLength: 8,
+            liveSyncDurationCount: 1,
+            liveMaxLatencyDurationCount: 3,
+            manifestLoadingRetryDelay: 1000,
+            manifestLoadingMaxRetry: 20,
+            levelLoadingRetryDelay: 1000,
+            levelLoadingMaxRetry: 20,
+            fragLoadingRetryDelay: 1000,
+            fragLoadingMaxRetry: 20,
+            enableWorker: true,
+            lowLatencyMode: true,
         });
         hls.loadSource(streamUrl);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            // Seek to live edge
+            if (hls.liveSyncPosition) {
+                video.currentTime = hls.liveSyncPosition;
+            }
             video.play().catch(() => {});
         });
         hls.on(Hls.Events.ERROR, (event, data) => {
             if (data.fatal) {
                 console.error('HLS fatal error:', data.type, data.details);
                 if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                    // Retry loading after delay
                     setTimeout(() => {
                         hls.startLoad();
-                    }, 3000);
+                    }, 2000);
                 } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
                     hls.recoverMediaError();
                 }
             }
         });
+        // Periodically seek to live edge to avoid falling behind
+        const liveSync = setInterval(() => {
+            if (video.paused) return;
+            if (hls.liveSyncPosition && (hls.liveSyncPosition - video.currentTime > 3)) {
+                video.currentTime = hls.liveSyncPosition;
+            }
+        }, 5000);
+        hls._liveSyncInterval = liveSync;
         hlsInstances[cameraId] = hls;
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         // Safari native HLS support
@@ -182,6 +196,9 @@ async function handleStartStream(id) {
 async function handleStopStream(id) {
     await stopStream(id);
     if (hlsInstances[id]) {
+        if (hlsInstances[id]._liveSyncInterval) {
+            clearInterval(hlsInstances[id]._liveSyncInterval);
+        }
         hlsInstances[id].destroy();
         delete hlsInstances[id];
     }
