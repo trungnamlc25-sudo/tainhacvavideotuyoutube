@@ -2,6 +2,7 @@
 
 import json
 import os
+import platform
 import signal
 import subprocess
 import threading
@@ -13,6 +14,8 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
+
+IS_WINDOWS = platform.system() == "Windows"
 
 app = FastAPI(title="EZVIZ LAN Camera Viewer", version="1.0.0")
 
@@ -123,12 +126,16 @@ def start_ffmpeg_stream(camera_id: str, rtsp_url: str) -> bool:
     ]
 
     try:
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            preexec_fn=os.setsid,
-        )
+        kwargs: dict = {
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+        }
+        if IS_WINDOWS:
+            kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            kwargs["preexec_fn"] = os.setsid
+
+        process = subprocess.Popen(cmd, **kwargs)
         with process_lock:
             ffmpeg_processes[camera_id] = process
         return True
@@ -142,12 +149,18 @@ def stop_ffmpeg_stream(camera_id: str) -> None:
         process = ffmpeg_processes.pop(camera_id, None)
     if process:
         try:
-            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+            if IS_WINDOWS:
+                process.terminate()
+            else:
+                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
             process.wait(timeout=5)
-        except (ProcessLookupError, subprocess.TimeoutExpired):
+        except (ProcessLookupError, subprocess.TimeoutExpired, OSError):
             try:
-                os.killpg(os.getpgid(process.pid), signal.SIGKILL)
-            except ProcessLookupError:
+                if IS_WINDOWS:
+                    process.kill()
+                else:
+                    os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+            except (ProcessLookupError, OSError):
                 pass
 
 
@@ -166,7 +179,7 @@ def is_stream_active(camera_id: str) -> bool:
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     """Render main page."""
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="index.html")
 
 
 @app.get("/api/cameras")
