@@ -1,5 +1,6 @@
 """EZVIZ LAN Camera Viewer - Main Application."""
 
+import glob
 import json
 import os
 import platform
@@ -102,17 +103,28 @@ def start_ffmpeg_stream(camera_id: str, rtsp_url: str) -> bool:
     # Kill existing process if any
     stop_ffmpeg_stream(camera_id)
 
+    # Clean old segments to avoid playing stale video
+    for old_file in glob.glob(str(output_dir / "*.ts")):
+        os.remove(old_file)
+    for old_file in glob.glob(str(output_dir / "*.m3u8")):
+        os.remove(old_file)
+
     cmd = [
         "ffmpeg",
         "-y",
         "-fflags",
-        "nobuffer",
-        "-flags",
-        "low_delay",
+        "+genpts+discardcorrupt+nobuffer",
         "-rtsp_transport",
         "tcp",
+        "-rtsp_flags",
+        "prefer_tcp",
+        "-stimeout",
+        "5000000",
         "-i",
         rtsp_url,
+        "-vsync",
+        "0",
+        "-copyts",
         "-c:v",
         "libx264",
         "-preset",
@@ -120,23 +132,29 @@ def start_ffmpeg_stream(camera_id: str, rtsp_url: str) -> bool:
         "-tune",
         "zerolatency",
         "-g",
-        "30",
+        "15",
+        "-sc_threshold",
+        "0",
         "-vf",
         "scale=1280:720",
         "-c:a",
         "aac",
         "-ar",
         "44100",
+        "-ac",
+        "1",
         "-f",
         "hls",
         "-hls_time",
         "1",
         "-hls_list_size",
-        "5",
+        "4",
         "-hls_flags",
-        "delete_segments",
+        "delete_segments+omit_endlist",
         "-hls_allow_cache",
         "0",
+        "-start_number",
+        str(int(time.time())),
         str(output_path),
     ]
 
