@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EZVIZ LAN Camera Viewer</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📹 EZVIZ LAN Camera Viewer</h1>
+            <p class="subtitle">Xem camera EZVIZ qua mạng LAN</p>
+        </header>
+
+        <!-- Add Camera Form -->
+        <div class="card add-camera-card">
+            <h2>➕ Thêm Camera</h2>
+            <form id="addCameraForm">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="camName">Tên camera</label>
+                        <input type="text" id="camName" placeholder="VD: Camera sân trước" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="camIp">Địa chỉ IP</label>
+                        <input type="text" id="camIp" placeholder="VD: 192.168.1.100" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="camPort">Port RTSP</label>
+                        <input type="number" id="camPort" value="554">
+                    </div>
+                    <div class="form-group">
+                        <label for="camUsername">Username</label>
+                        <input type="text" id="camUsername" value="admin">
+                    </div>
+                    <div class="form-group">
+                        <label for="camPassword">Password</label>
+                        <input type="password" id="camPassword" placeholder="Mật khẩu camera">
+                    </div>
+                    <div class="form-group">
+                        <label for="camChannel">Kênh</label>
+                        <input type="number" id="camChannel" value="1" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="camStreamType">Loại stream</label>
+                        <select id="camStreamType">
+                            <option value="1">Main stream (HD)</option>
+                            <option value="2">Sub stream (SD)</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Thêm Camera</button>
+            </form>
+        </div>
+
+        <!-- Camera Grid -->
+        <div class="card">
+            <h2>🎥 Danh sách Camera</h2>
+            <div id="cameraGrid" class="camera-grid">
+                <p class="empty-state">Chưa có camera nào. Hãy thêm camera ở trên.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
