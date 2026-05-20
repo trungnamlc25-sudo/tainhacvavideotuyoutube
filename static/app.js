@@ -105,9 +105,15 @@ function initHlsPlayer(cameraId, streamUrl) {
         const hls = new Hls({
             liveDurationInfinity: true,
             liveBackBufferLength: 0,
-            maxBufferLength: 5,
-            maxMaxBufferLength: 10,
-            liveSyncDurationCount: 1,
+            maxBufferLength: 10,
+            maxMaxBufferLength: 30,
+            liveSyncDurationCount: 2,
+            manifestLoadingRetryDelay: 2000,
+            manifestLoadingMaxRetry: 10,
+            levelLoadingRetryDelay: 2000,
+            levelLoadingMaxRetry: 10,
+            fragLoadingRetryDelay: 2000,
+            fragLoadingMaxRetry: 10,
         });
         hls.loadSource(streamUrl);
         hls.attachMedia(video);
@@ -116,10 +122,14 @@ function initHlsPlayer(cameraId, streamUrl) {
         });
         hls.on(Hls.Events.ERROR, (event, data) => {
             if (data.fatal) {
-                console.error('HLS fatal error:', data.type);
-                // Try to recover
+                console.error('HLS fatal error:', data.type, data.details);
                 if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                    setTimeout(() => hls.startLoad(), 3000);
+                    // Retry loading after delay
+                    setTimeout(() => {
+                        hls.startLoad();
+                    }, 3000);
+                } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                    hls.recoverMediaError();
                 }
             }
         });
