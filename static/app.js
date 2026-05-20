@@ -101,6 +101,9 @@ function initHlsPlayer(cameraId, streamUrl) {
         delete hlsInstances[cameraId];
     }
 
+    // Add cache-busting to stream URL
+    const cacheBustUrl = streamUrl + '?_t=' + Date.now();
+
     if (Hls.isSupported()) {
         const hls = new Hls({
             liveDurationInfinity: true,
@@ -110,15 +113,19 @@ function initHlsPlayer(cameraId, streamUrl) {
             liveSyncDurationCount: 1,
             liveMaxLatencyDurationCount: 3,
             manifestLoadingRetryDelay: 1000,
-            manifestLoadingMaxRetry: 20,
+            manifestLoadingMaxRetry: 30,
             levelLoadingRetryDelay: 1000,
-            levelLoadingMaxRetry: 20,
+            levelLoadingMaxRetry: 30,
             fragLoadingRetryDelay: 1000,
-            fragLoadingMaxRetry: 20,
+            fragLoadingMaxRetry: 30,
             enableWorker: true,
             lowLatencyMode: true,
+            xhrSetup: function(xhr) {
+                // Prevent browser caching of HLS manifests and segments
+                xhr.setRequestHeader('Cache-Control', 'no-cache, no-store');
+            },
         });
-        hls.loadSource(streamUrl);
+        hls.loadSource(cacheBustUrl);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
             // Seek to live edge
@@ -142,15 +149,15 @@ function initHlsPlayer(cameraId, streamUrl) {
         // Periodically seek to live edge to avoid falling behind
         const liveSync = setInterval(() => {
             if (video.paused) return;
-            if (hls.liveSyncPosition && (hls.liveSyncPosition - video.currentTime > 3)) {
+            if (hls.liveSyncPosition && (hls.liveSyncPosition - video.currentTime > 2)) {
                 video.currentTime = hls.liveSyncPosition;
             }
-        }, 5000);
+        }, 3000);
         hls._liveSyncInterval = liveSync;
         hlsInstances[cameraId] = hls;
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         // Safari native HLS support
-        video.src = streamUrl;
+        video.src = cacheBustUrl;
         video.addEventListener('loadedmetadata', () => {
             video.play().catch(() => {});
         });
