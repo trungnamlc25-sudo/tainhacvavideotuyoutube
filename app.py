@@ -104,6 +104,7 @@ def start_ffmpeg_stream(camera_id: str, rtsp_url: str) -> bool:
 
     cmd = [
         "ffmpeg",
+        "-y",
         "-rtsp_transport",
         "tcp",
         "-i",
@@ -276,8 +277,26 @@ async def start_stream(camera_id: str):
             detail="Failed to start stream. Make sure FFmpeg is installed.",
         )
 
-    # Wait a moment for HLS segments to generate
-    time.sleep(2)
+    # Wait until HLS playlist file is created (max 15 seconds)
+    output_dir = STREAMS_DIR / camera_id
+    m3u8_path = output_dir / "stream.m3u8"
+    for _ in range(30):
+        time.sleep(0.5)
+        if m3u8_path.exists() and m3u8_path.stat().st_size > 0:
+            # Wait a bit more for first segment
+            time.sleep(1)
+            break
+        # Check if FFmpeg crashed
+        if not is_stream_active(camera_id):
+            raise HTTPException(
+                status_code=500,
+                detail="FFmpeg process died. Check camera IP/password and FFmpeg installation.",
+            )
+    else:
+        raise HTTPException(
+            status_code=500,
+            detail="Timeout waiting for stream. FFmpeg may not be generating output.",
+        )
 
     return {
         "message": "Stream started",
@@ -296,9 +315,15 @@ async def stop_stream(camera_id: str):
 async def stream_status(camera_id: str):
     """Check stream status."""
     active = is_stream_active(camera_id)
+    # Check if HLS files exist
+    output_dir = STREAMS_DIR / camera_id
+    m3u8_exists = (output_dir / "stream.m3u8").exists()
+    ts_files = list(output_dir.glob("*.ts")) if output_dir.exists() else []
     return {
         "active": active,
         "stream_url": f"/streams/{camera_id}/stream.m3u8" if active else None,
+        "m3u8_exists": m3u8_exists,
+        "ts_segments": len(ts_files),
     }
 
 
